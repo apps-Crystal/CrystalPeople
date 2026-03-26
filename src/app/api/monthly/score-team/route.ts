@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { readSheet, cachedReadSheet } from "@/lib/sheets";
-import { parseConfigRows, getScoreDimensions, safeJsonParse } from "@/lib/utils";
-import type { Employee, Goal, Task, ReviewCycle, ScoreDimension } from "@/lib/types";
+import {
+  parseConfigRows, getScoreDimensionsFromAssignments,
+  getManagerScoreWindow, safeJsonParse,
+} from "@/lib/utils";
+import type { Employee, Assignment, ReviewCycle, ScoreDimension } from "@/lib/types";
 
 // ─── GET /api/monthly/score-team ──────────────────────────────────────────────
 
@@ -16,19 +19,21 @@ export async function GET(req: NextRequest) {
 
   const configRows = await cachedReadSheet("Config") as { Key: string; Value: string }[];
   const config = parseConfigRows(configRows);
+
+  // Determine which month/year managers are scoring (previous month, days 1-7)
+  const scoreWindow = getManagerScoreWindow(config);
+  const scoreMonth = String(scoreWindow.scoreMonth);
+  const scoreYear = String(scoreWindow.scoreYear);
+
   const { searchParams } = req.nextUrl;
-  const month = searchParams.get("month") ?? String(config.current_month);
-  const year = searchParams.get("year") ?? String(config.current_year);
   const employeeId = searchParams.get("employee_id");
 
-  const [employees, goals, tasks, cycles] = await Promise.all([
+  const [employees, assignments, cycles] = await Promise.all([
     cachedReadSheet("Employees") as unknown as Promise<Employee[]>,
-    readSheet("Goals") as unknown as Promise<Goal[]>,
-    readSheet("Tasks") as unknown as Promise<Task[]>,
+    cachedReadSheet("Assignments") as unknown as Promise<Assignment[]>,
     readSheet("Review_Cycles") as unknown as Promise<ReviewCycle[]>,
   ]);
 
-  // Determine team: manager sees reports, hr/md sees all active employees
   const allEmployees = employees as Employee[];
   let team: Employee[];
   if (session.role === "manager") {
@@ -44,22 +49,19 @@ export async function GET(req: NextRequest) {
     const employee = allEmployees.find(e => e.Employee_ID === employeeId);
     if (!employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
 
-    // Validate access
     if (session.role === "manager" && employee.Manager_ID !== session.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const empGoals = (goals as Goal[]).filter(
-      g => g.Employee_ID === employeeId && g.Month === month && g.Year === year
+    const empAssignments = (assignments as Assignment[]).filter(
+      a => a.Employee_ID === employeeId && a.Month === scoreMonth && a.Year === scoreYear
     );
-    const empTasks = (tasks as Task[]).filter(t => t.Employee_ID === employeeId);
-    const dimensions = getScoreDimensions(employee, empGoals, empTasks);
+    const dimensions: ScoreDimension[] = getScoreDimensionsFromAssignments(empAssignments);
 
     const cycle = (cycles as ReviewCycle[]).find(
-      c => c.Employee_ID === employeeId && c.Month === month && c.Year === year
+      c => c.Employee_ID === employeeId && c.Month === scoreMonth && c.Year === scoreYear
     ) ?? null;
 
-    // Populate scores into dimensions
     if (cycle) {
       const selfScores = safeJsonParse<Record<string, number>>(cycle.Self_Scores, {});
       const managerScores = safeJsonParse<Record<string, number>>(cycle.Manager_Scores, {});
@@ -69,19 +71,18 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ employee, cycle, dimensions });
+    return NextResponse.json({ employee, cycle, dimensions, scoreWindow });
   }
 
   // Team list view
   const teamData = team.map(employee => {
-    const empGoals = (goals as Goal[]).filter(
-      g => g.Employee_ID === employee.Employee_ID && g.Month === month && g.Year === year
+    const empAssignments = (assignments as Assignment[]).filter(
+      a => a.Employee_ID === employee.Employee_ID && a.Month === scoreMonth && a.Year === scoreYear
     );
-    const empTasks = (tasks as Task[]).filter(t => t.Employee_ID === employee.Employee_ID);
-    const dimensions: ScoreDimension[] = getScoreDimensions(employee, empGoals, empTasks);
+    const dimensions: ScoreDimension[] = getScoreDimensionsFromAssignments(empAssignments);
 
     const cycle = (cycles as ReviewCycle[]).find(
-      c => c.Employee_ID === employee.Employee_ID && c.Month === month && c.Year === year
+      c => c.Employee_ID === employee.Employee_ID && c.Month === scoreMonth && c.Year === scoreYear
     ) ?? null;
 
     if (cycle?.Self_Scores) {
@@ -94,5 +95,5 @@ export async function GET(req: NextRequest) {
     return { employee, cycle, dimensions };
   });
 
-  return NextResponse.json({ team: teamData });
+  return NextResponse.json({ team: teamData, scoreWindow });
 }

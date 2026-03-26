@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { Role, RatingBand, ConfigMap, ScoreDimension, Employee, Goal, Task } from "./types";
+import type { Role, RatingBand, ConfigMap, ScoreDimension, Employee, Goal, Task, Assignment } from "./types";
 
 // ─── Tailwind merge ───────────────────────────────────────────────────────────
 
@@ -21,12 +21,13 @@ export function fmtDate(dateStr: string): string {
 
 export function fmtDateTime(dateStr: string): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleString("en-GB", {
+  return new Date(dateStr).toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Kolkata",
   });
 }
 
@@ -201,4 +202,72 @@ export function monthLabel(month: number, year: number): string {
     month: "long",
     year: "numeric",
   });
+}
+
+// ─── Self-score window: last 7 days of config month ───────────────────────────
+
+export function isSelfScoreWindowOpen(
+  config: ConfigMap,
+  today: Date = new Date()
+): { open: boolean; opensOnDay: number; lastDay: number } {
+  const day = today.getDate();
+  const month = today.getMonth() + 1;
+  const year = today.getFullYear();
+  const lastDay = new Date(config.current_year, config.current_month, 0).getDate();
+  const windowStart = lastDay - 6;
+  const inCurrentMonth =
+    month === config.current_month && year === config.current_year;
+  const open = inCurrentMonth && day >= windowStart && day <= lastDay;
+  return { open, opensOnDay: windowStart, lastDay };
+}
+
+// ─── Manager score window: days 1-7 of the month AFTER config month ───────────
+
+export interface ManagerScoreWindow {
+  open: boolean;
+  scoreMonth: number; // month being scored (previous)
+  scoreYear: number;
+  opensNextMonth: number;
+  opensNextYear: number;
+}
+
+export function getManagerScoreWindow(
+  config: ConfigMap,
+  today: Date = new Date()
+): ManagerScoreWindow {
+  const day = today.getDate();
+  const month = today.getMonth() + 1;
+  const year = today.getFullYear();
+
+  // The next month after config.current_month
+  let nextMonth = config.current_month + 1;
+  let nextYear = config.current_year;
+  if (nextMonth > 12) { nextMonth = 1; nextYear++; }
+
+  const inNextMonth = month === nextMonth && year === nextYear;
+  const open = inNextMonth && day >= 1 && day <= 7;
+
+  // The month being scored is config.current_month (previous relative to window)
+  return {
+    open,
+    scoreMonth: config.current_month,
+    scoreYear: config.current_year,
+    opensNextMonth: nextMonth,
+    opensNextYear: nextYear,
+  };
+}
+
+// ─── Assignment-based score dimensions ────────────────────────────────────────
+
+export function getScoreDimensionsFromAssignments(
+  assignments: Assignment[]
+): ScoreDimension[] {
+  const dims: ScoreDimension[] = assignments
+    .filter((a) => a.Status === "active" || a.Status === "completed")
+    .map((a) => ({
+      key: a.Assignment_ID,
+      label: a.Title,
+      type: a.Type as "goal" | "task",
+    }));
+  return [...dims, ...BEHAVIOUR_DIMENSIONS];
 }

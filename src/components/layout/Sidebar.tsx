@@ -4,14 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard, ClipboardList, Target, CheckSquare, History,
-  MessageSquare, Users, Shield, TrendingUp,
-  ChevronLeft, Menu, LogOut, Star, ChevronDown,
+  LayoutDashboard, ClipboardList, Briefcase,
+  Users, Shield, TrendingUp,
+  ChevronLeft, Menu, LogOut, Star, ChevronDown, ShieldAlert, Clock,
 } from "lucide-react";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
 import type { Role } from "@/lib/types";
 
-interface NavChild { name: string; href: string; roles?: Role[]; }
+interface NavChild { name: string; href: string; roles?: Role[]; comingSoon?: boolean; }
 interface NavItem {
   name: string; href?: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -22,40 +22,37 @@ interface NavItem {
 const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["All"] },
   { name: "Weekly Reflection", href: "/weekly/reflection", icon: ClipboardList, roles: ["employee","manager","hr","md"] },
-  { name: "Monthly Self-Score", href: "/monthly/self-score", icon: Star, roles: ["employee","manager","hr","md"] },
-  { name: "My Review", href: "/monthly/my-review", icon: Star, roles: ["employee","manager","md"] },
-  { name: "My Goals", href: "/goals", icon: Target, roles: ["employee","manager","hr","md"] },
-  { name: "My Tasks", href: "/tasks", icon: CheckSquare, roles: ["employee","manager","hr","md"] },
-  { name: "My History", href: "/history", icon: History, roles: ["employee","manager","hr","md"] },
-  { name: "My Feedback", href: "/feedback", icon: MessageSquare, roles: ["employee","manager","hr","md"] },
+  { name: "Monthly Review", href: "/monthly/self-score", icon: Star, roles: ["employee","manager","hr","md"] },
+  { name: "My Assignments", href: "/assignments", icon: Briefcase, roles: ["employee","manager","hr","md"] },
+  { name: "Grievances", href: "/grievances", icon: ShieldAlert, roles: ["employee","manager","hr","md"] },
   {
     name: "My Team", icon: Users, roles: ["manager","hr","md"],
     children: [
-      { name: "Team Overview", href: "/team" },
+      { name: "Team Overview", href: "/team", comingSoon: true },
       { name: "Weekly Check-In", href: "/weekly/checkin" },
       { name: "Score My Team", href: "/monthly/score-team" },
-      { name: "Team Goals", href: "/team/goals" },
-      { name: "Team Tasks", href: "/team/tasks" },
+      { name: "Assignments", href: "/assignments" },
     ],
   },
   {
     name: "HR Admin", icon: Shield, roles: ["hr","md"],
     children: [
       { name: "Employees", href: "/admin/employees" },
+      { name: "Grievances", href: "/admin/grievances" },
       { name: "Review Monitor", href: "/admin/monitoring" },
-      { name: "Org Changes", href: "/admin/org-changes" },
-      { name: "Increments", href: "/admin/increments" },
-      { name: "Reports", href: "/admin/reports" },
-      { name: "Notifications", href: "/admin/notifications" },
-      { name: "Config", href: "/admin/config" },
+      { name: "Org Changes", href: "/admin/org-changes", comingSoon: true },
+      { name: "Increments", href: "/admin/increments", comingSoon: true },
+      { name: "Reports", href: "/admin/reports", comingSoon: true },
+      { name: "Notifications", href: "/admin/notifications", comingSoon: true },
+      { name: "Config", href: "/admin/config", comingSoon: true },
     ],
   },
   {
     name: "Executive", icon: TrendingUp, roles: ["md"],
     children: [
-      { name: "Exec Dashboard", href: "/executive" },
-      { name: "Approve Increments", href: "/executive/increments" },
-      { name: "Rating Overrides", href: "/executive/overrides" },
+      { name: "Exec Dashboard", href: "/executive", comingSoon: true },
+      { name: "Approve Increments", href: "/executive/increments", comingSoon: true },
+      { name: "Rating Overrides", href: "/executive/overrides", comingSoon: true },
     ],
   },
 ];
@@ -102,9 +99,14 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto py-4 px-2 overflow-x-hidden">
         <nav className="space-y-1">
           {navItems.filter(item => canAccess(item.roles)).map((item) => {
+            // Filter out coming-soon children for active nav rendering
+            const activeChildren = item.children?.filter(c => !c.comingSoon && (!c.roles || canAccess(c.roles as Role[])));
+            // Hide groups where all children are coming soon
+            if (!item.href && activeChildren?.length === 0) return null;
+
             const isActive = item.href
               ? pathname === item.href
-              : (item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + "/")) ?? false);
+              : (activeChildren?.some(c => pathname === c.href || pathname.startsWith(c.href + "/")) ?? false);
 
             return (
               <div key={item.name} className="flex flex-col relative group/navitem">
@@ -134,11 +136,9 @@ export function Sidebar() {
                       </div>
                       {!isCollapsed && <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0" />}
                     </div>
-                    {!isCollapsed && item.children && (
+                    {!isCollapsed && activeChildren && (
                       <div className="mt-1 space-y-1 pl-9">
-                        {item.children
-                          .filter(c => !c.roles || canAccess(c.roles as Role[]))
-                          .map((child) => {
+                        {activeChildren.map((child) => {
                             const isChildActive = pathname === child.href || pathname.startsWith(child.href + "/");
                             return (
                               <Link
@@ -163,6 +163,38 @@ export function Sidebar() {
             );
           })}
         </nav>
+
+        {/* Coming Soon section */}
+        {!isCollapsed && (() => {
+          const comingSoonItems = navItems
+            .filter(item => canAccess(item.roles))
+            .flatMap(item =>
+              item.children
+                ? item.children.filter(c => c.comingSoon && (!c.roles || canAccess(c.roles as Role[]))).map(c => ({ ...c, group: item.name }))
+                : []
+            );
+          if (comingSoonItems.length === 0) return null;
+          return (
+            <div className="mt-4 pt-4 border-t border-primary-800/60">
+              <div className="flex items-center gap-1.5 px-2 mb-2">
+                <Clock className="h-3 w-3 text-primary-500" />
+                <span className="text-[10px] font-semibold text-primary-500 uppercase tracking-widest">Coming Soon</span>
+              </div>
+              <div className="space-y-0.5">
+                {comingSoonItems.map(item => (
+                  <div
+                    key={item.href}
+                    title={`${item.name} — Coming soon`}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-sm cursor-default"
+                  >
+                    <span className="text-xs text-primary-600 truncate">{item.name}</span>
+                    <span className="text-[9px] font-medium text-primary-600 bg-primary-800 px-1.5 py-0.5 rounded-sm flex-shrink-0 ml-1">Soon</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Footer */}

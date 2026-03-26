@@ -9,6 +9,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent]       = useState(false);
   const [devLink, setDevLink] = useState("");
+  const [smtpError, setSmtpError] = useState("");
   const [error, setError]     = useState("");
 
   async function handleSubmit(e: FormEvent) {
@@ -21,9 +22,16 @@ export default function ForgotPasswordPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: Record<string, string> = {};
+      try { data = JSON.parse(text); } catch { /* non-JSON */ }
+      if (!res.ok) {
+        setError(data.error ?? "Unable to connect. Please try again.");
+        return;
+      }
       setSent(true);
       if (data.dev_reset_link) setDevLink(data.dev_reset_link);
+      if (data.smtp_error) setSmtpError(data.smtp_error);
     } catch {
       setError("Unable to connect. Please try again.");
     } finally {
@@ -75,6 +83,14 @@ export default function ForgotPasswordPage() {
                   >
                     {devLink}
                   </a>
+                </div>
+              )}
+              {smtpError && (
+                <div className="bg-danger/10 border border-danger/30 rounded-sm p-3 text-left">
+                  <p className="text-[10px] font-bold text-danger uppercase tracking-wide mb-1">
+                    Dev mode — SMTP error:
+                  </p>
+                  <p className="text-xs font-mono text-danger break-all">{smtpError}</p>
                 </div>
               )}
 

@@ -88,7 +88,7 @@ export default function CheckinPage() {
       <div className="grid grid-cols-3 gap-3">
         <StatBox label="Reflections Submitted" value={`${reflectedCount}/${team.length}`} color="blue" />
         <StatBox label="Check-Ins Written" value={`${checkinCount}/${team.length}`} color="green" />
-        <StatBox label="Awaiting Check-In" value={String(pendingCount)} color={pendingCount > 0 ? "orange" : "green"} />
+        <StatBox label="Check-Ins Pending" value={String(team.length - checkinCount)} color={(team.length - checkinCount) > 0 ? "orange" : "green"} />
       </div>
 
       {/* Team table */}
@@ -128,7 +128,7 @@ export default function CheckinPage() {
                       <StatusDot active={member.acknowledged} />
                     </td>
                     <td className="px-3 py-3 text-right">
-                      {member.reflection_submitted && !member.checkin_submitted ? (
+                      {!member.checkin_submitted ? (
                         <button
                           onClick={() => setModal({ member, mode: "write" })}
                           className="flex items-center gap-1.5 h-7 px-3 text-[11px] font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-sm transition-colors ml-auto"
@@ -142,9 +142,7 @@ export default function CheckinPage() {
                         >
                           <Eye size={11} /> View
                         </button>
-                      ) : (
-                        <span className="text-[11px] text-text-secondary italic">Awaiting reflection</span>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}

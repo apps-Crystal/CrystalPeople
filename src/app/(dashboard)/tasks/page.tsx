@@ -53,13 +53,11 @@ export default function TasksPage() {
   const isManager = user?.role === "manager" || user?.role === "hr" || user?.role === "md";
   const isWhiteCollar = user?.employeeType === "white_collar" && user?.role === "employee";
 
-  const fetchTasks = useCallback(async (empId?: string) => {
-    const id = empId ?? selectedEmployeeId ?? (isManager ? "" : user?.userId);
-    if (!id && isManager) return;
+  const fetchTasks = useCallback(async (empId: string) => {
+    if (!empId) return;
     setLoading(true);
     try {
-      const url = id ? `/api/tasks?employee_id=${id}` : "/api/tasks";
-      const res = await fetch(url);
+      const res = await fetch(`/api/tasks?employee_id=${empId}`);
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks ?? []);
@@ -67,16 +65,15 @@ export default function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedEmployeeId, isManager, user?.userId]);
+  }, []);
 
+  // Initial load: config + team members (runs once)
   useEffect(() => {
     if (!user) return;
 
-    // Fetch config
     fetch("/api/config").then(r => r.json()).then(d => setConfig(d.config));
 
     if (isManager) {
-      // Load team members
       fetch("/api/employees").then(r => r.json()).then(data => {
         const emps = (data.employees ?? []) as Employee[];
         const team = user.role === "manager"
@@ -86,15 +83,22 @@ export default function TasksPage() {
         setTeamMembers(blueCollar);
         if (blueCollar.length > 0) {
           setSelectedEmployeeId(blueCollar[0].Employee_ID);
-          fetchTasks(blueCollar[0].Employee_ID);
         } else {
           setLoading(false);
         }
       });
     } else {
-      fetchTasks();
+      fetchTasks(user.userId);
     }
-  }, [user, isManager, fetchTasks]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Fetch tasks whenever selectedEmployeeId changes
+  useEffect(() => {
+    if (isManager && selectedEmployeeId) {
+      fetchTasks(selectedEmployeeId);
+    }
+  }, [selectedEmployeeId, isManager, fetchTasks]);
 
   async function handleAddTask() {
     setAddError("");

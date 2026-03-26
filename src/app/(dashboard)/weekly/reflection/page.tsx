@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, AlertCircle, MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Badge } from "@/components/ui/Badge";
 import { Spinner, PageLoader } from "@/components/ui/Spinner";
 import { cn, getWeekStart, getWeekLabel, fmtDateTime } from "@/lib/utils";
-import { useCurrentUser } from "@/components/auth/AuthProvider";
 import type { WeeklyReflection } from "@/lib/types";
 
 // ─── Mood config ─────────────────────────────────────────────────────────────
@@ -19,21 +17,12 @@ const MOODS = [
   { value: 5, emoji: "😊", label: "Great" },
 ] as const;
 
-interface Checkin {
-  Checkin_ID: string;
-  Did_Well: string;
-  Improve: string;
-  Submitted_At: string;
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReflectionPage() {
-  const { user } = useCurrentUser();
   const week = getWeekStart();
 
   const [reflection, setReflection] = useState<WeeklyReflection | null>(null);
-  const [checkin, setCheckin] = useState<Checkin | null>(null);
   const [loading, setLoading] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<WeeklyReflection[]>([]);
@@ -47,10 +36,6 @@ export default function ReflectionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Acknowledge state
-  const [ackLoading, setAckLoading] = useState(false);
-  const [ackDone, setAckDone] = useState(false);
-
   const fetchCurrent = useCallback(async () => {
     setLoading(true);
     try {
@@ -58,23 +43,12 @@ export default function ReflectionPage() {
       if (!res.ok) return;
       const data = await res.json();
       setReflection(data.reflection ?? null);
-      if (data.reflection?.Acknowledged_At) setAckDone(true);
     } finally {
       setLoading(false);
     }
   }, [week]);
 
-  const fetchCheckin = useCallback(async () => {
-    if (!user?.userId) return;
-    const res = await fetch(`/api/weekly/checkin?employee_id=${user.userId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setCheckin(data.checkin ?? null);
-    }
-  }, [user?.userId]);
-
   useEffect(() => { fetchCurrent(); }, [fetchCurrent]);
-  useEffect(() => { if (reflection && user) fetchCheckin(); }, [reflection, user, fetchCheckin]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -92,20 +66,6 @@ export default function ReflectionPage() {
       await fetchCurrent();
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleAcknowledge() {
-    setAckLoading(true);
-    try {
-      const res = await fetch("/api/weekly/acknowledge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkin_id: checkin?.Checkin_ID }),
-      });
-      if (res.ok) { setAckDone(true); await fetchCurrent(); }
-    } finally {
-      setAckLoading(false);
     }
   }
 
@@ -138,50 +98,17 @@ export default function ReflectionPage() {
           <PageHeader title="Weekly Reflection" />
           <p className="text-xs text-text-secondary mt-0.5">{getWeekLabel(week)}</p>
         </div>
-        {reflection && <Badge variant="complete" label="Submitted ✓" size="md" />}
+        {reflection && (
+          <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-sm border bg-success/10 text-success border-success/20">
+            Submitted ✓
+          </span>
+        )}
       </div>
 
       {/* ── Submitted view ── */}
       {reflection ? (
         <div className="space-y-4">
           <ReadOnlyReflection reflection={reflection} />
-
-          {checkin ? (
-            <div className="enterprise-card p-4 border-l-4 border-l-accent-500">
-              <div className="flex items-center gap-2 mb-3">
-                <MessageSquare size={14} className="text-accent-500" />
-                <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wide">Manager Feedback</h3>
-                {ackDone || reflection.Acknowledged_At
-                  ? <Badge variant="acknowledged" label="Acknowledged ✓" />
-                  : <Badge variant="pending" label="Tap to acknowledge" />
-                }
-              </div>
-              <div className="space-y-3">
-                <FeedbackField label="What you did well" value={checkin.Did_Well} />
-                <FeedbackField label="One thing to improve" value={checkin.Improve} />
-              </div>
-              <p className="text-[11px] text-text-secondary mt-3">
-                Submitted by your manager · {fmtDateTime(checkin.Submitted_At)}
-              </p>
-              {!ackDone && !reflection.Acknowledged_At && (
-                <button
-                  onClick={handleAcknowledge}
-                  disabled={ackLoading}
-                  className="mt-3 flex items-center gap-2 h-8 px-4 text-xs font-semibold bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-sm shadow-sm transition-colors"
-                >
-                  {ackLoading ? <Spinner size="sm" /> : <CheckCircle2 size={13} />}
-                  Acknowledge Feedback
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="enterprise-card p-4 bg-primary-50/50">
-              <p className="text-xs text-text-secondary flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-warning flex-shrink-0 animate-pulse" />
-                Your manager hasn&apos;t submitted a check-in yet. You&apos;ll be notified once it&apos;s available.
-              </p>
-            </div>
-          )}
         </div>
       ) : (
         /* ── Submission form ── */
@@ -332,15 +259,6 @@ function ReadField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FeedbackField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-sm bg-primary-50 border border-border px-3 py-2.5">
-      <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">{value}</p>
-    </div>
-  );
-}
-
 function PastReflectionRow({ reflection }: { reflection: WeeklyReflection }) {
   const [open, setOpen] = useState(false);
   const moodItem = MOODS.find(m => m.value === Number(reflection.Mood));
@@ -350,10 +268,14 @@ function PastReflectionRow({ reflection }: { reflection: WeeklyReflection }) {
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3 text-xs hover:bg-primary-50/50 transition-colors"
       >
-        <span className="font-medium text-text-primary">{getWeekLabel(reflection.Week_Start_Date)}</span>
+        <div className="text-left">
+          <span className="font-medium text-text-primary">{getWeekLabel(reflection.Week_Start_Date)}</span>
+          {reflection.Submitted_At && (
+            <p className="text-[10px] text-text-secondary mt-0.5">{fmtDateTime(reflection.Submitted_At)}</p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {moodItem && <span className="text-base">{moodItem.emoji}</span>}
-          {reflection.Acknowledged_At && <Badge variant="acknowledged" label="Ack'd" />}
           {open ? <ChevronDown size={12} className="text-text-secondary" /> : <ChevronRight size={12} className="text-text-secondary" />}
         </div>
       </button>

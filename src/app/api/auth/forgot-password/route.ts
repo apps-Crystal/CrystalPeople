@@ -25,12 +25,12 @@ const GENERIC_SUCCESS = {
 
 async function sendResetEmail(email: string, resetLink: string, name: string) {
   const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: process.env.SMTP_SECURE === "true",
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      pass: process.env.SMTP_PASS?.replace(/\s/g, ""), // strip spaces from Gmail app password
     },
   });
 
@@ -64,7 +64,13 @@ async function sendResetEmail(email: string, resetLink: string, name: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const { email } = await req.json();
+  let email: string | undefined;
+  try {
+    const body = await req.json();
+    email = body.email;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   if (!email) return NextResponse.json(GENERIC_SUCCESS);
 
@@ -90,17 +96,19 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const resetLink = `${appUrl}/auth/reset-password?token=${token}`;
 
-    // Try sending email — fail silently so dev mode still works
+    const isDev = process.env.NODE_ENV !== "production";
+    let smtpError: string | undefined;
+
     try {
       await sendResetEmail(email, resetLink, employee.Name ?? "there");
     } catch (emailErr) {
       console.warn("[forgot-password] Email send failed:", emailErr);
+      if (isDev) smtpError = String(emailErr);
     }
 
-    const isDev = process.env.NODE_ENV !== "production";
     return NextResponse.json({
       ...GENERIC_SUCCESS,
-      ...(isDev ? { dev_reset_link: resetLink } : {}),
+      ...(isDev ? { dev_reset_link: resetLink, smtp_error: smtpError } : {}),
     });
   } catch (err) {
     console.error("[forgot-password]", err);

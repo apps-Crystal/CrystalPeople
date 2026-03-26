@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import {
   AlertCircle, Users, ChevronLeft, TriangleAlert, CheckCircle2,
-  ChevronDown, ChevronRight, Sparkles,
+  ChevronDown, ChevronRight, Sparkles, Calendar,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -12,7 +12,15 @@ import { RatingBadge } from "@/components/ui/RatingBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageLoader } from "@/components/ui/Spinner";
 import { cn, monthLabel, computeAverage, getWeekLabel } from "@/lib/utils";
-import type { Employee, ReviewCycle, ScoreDimension, ConfigMap, WeeklyReflection, WeeklyCheckin } from "@/lib/types";
+import type { Employee, ReviewCycle, ScoreDimension, WeeklyReflection, WeeklyCheckin } from "@/lib/types";
+
+interface ManagerScoreWindow {
+  open: boolean;
+  scoreMonth: number;
+  scoreYear: number;
+  opensNextMonth: number;
+  opensNextYear: number;
+}
 
 interface TeamMember {
   employee: Employee;
@@ -69,7 +77,7 @@ function cycleStatusRow(status: string | null | undefined): string {
 
 export default function ScoreTeamPage() {
   const [team, setTeam] = useState<TeamMember[]>([]);
-  const [config, setConfig] = useState<ConfigMap | null>(null);
+  const [scoreWindow, setScoreWindow] = useState<ManagerScoreWindow | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [singleData, setSingleData] = useState<SingleEmployee | null>(null);
@@ -99,12 +107,12 @@ export default function ScoreTeamPage() {
   const fetchTeam = useCallback(async () => {
     setLoading(true);
     try {
-      const [teamRes, configRes] = await Promise.all([
-        fetch("/api/monthly/score-team"),
-        fetch("/api/config"),
-      ]);
-      if (teamRes.ok) { const d = await teamRes.json(); setTeam(d.team ?? []); }
-      if (configRes.ok) { const d = await configRes.json(); setConfig(d.config); }
+      const res = await fetch("/api/monthly/score-team");
+      if (res.ok) {
+        const d = await res.json();
+        setTeam(d.team ?? []);
+        if (d.scoreWindow) setScoreWindow(d.scoreWindow);
+      }
     } finally {
       setLoading(false);
     }
@@ -143,9 +151,9 @@ export default function ScoreTeamPage() {
     } finally {
       setSingleLoading(false);
     }
-    // Also fetch weekly context
-    if (config) {
-      fetch(`/api/monthly/weekly-context?employee_id=${empId}&month=${config.current_month}&year=${config.current_year}`)
+    // Also fetch weekly context for the scored month
+    if (scoreWindow) {
+      fetch(`/api/monthly/weekly-context?employee_id=${empId}&month=${scoreWindow.scoreMonth}&year=${scoreWindow.scoreYear}`)
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.weeks) setWeeklyContext(d.weeks); })
         .catch(() => { /* ignore */ });
@@ -225,7 +233,8 @@ export default function ScoreTeamPage() {
 
   if (loading) return <PageLoader />;
 
-  const currentLabel = config ? monthLabel(config.current_month, config.current_year) : "";
+  const currentLabel = scoreWindow ? monthLabel(scoreWindow.scoreMonth, scoreWindow.scoreYear) : "";
+  const nextLabel = scoreWindow ? monthLabel(scoreWindow.opensNextMonth, scoreWindow.opensNextYear) : "";
   const scored = team.filter(t => t.cycle && t.cycle.Status !== "pending" && t.cycle.Status !== "self_scored").length;
   const readyToScore = team.filter(t => t.cycle?.Status === "self_scored").length;
 
@@ -253,7 +262,7 @@ export default function ScoreTeamPage() {
 
         <PageHeader
           title={`Scoring ${employee.Name}`}
-          subtitle={`${employee.Department} · ${employee.Employee_Type === "white_collar" ? "White-collar" : "Blue-collar"} · ${currentLabel}`}
+          subtitle={`${employee.Department} · ${employee.Employee_Type === "white_collar" ? "White-collar" : "Blue-collar"} · ${currentLabel} Review`}
           action={cycle && <Badge variant={cycle.Status as "self_scored" | "manager_scored"} />}
         />
 
@@ -374,8 +383,8 @@ export default function ScoreTeamPage() {
                   const hasGap = selfScore !== undefined && mgrScore !== undefined && Math.abs(selfScore - mgrScore) > 1;
 
                   return (
-                    <>
-                      <div key={`${dim.key}-label`} className={cn("px-4 py-3 flex items-center gap-2 border-b border-border", hasGap && "bg-amber-50")}>
+                    <Fragment key={dim.key}>
+                      <div className={cn("px-4 py-3 flex items-center gap-2 border-b border-border", hasGap && "bg-amber-50")}>
                         <span className={cn("inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-sm border flex-shrink-0", TYPE_COLOR[dim.type])}>
                           {TYPE_LABEL[dim.type]}
                         </span>
@@ -383,11 +392,11 @@ export default function ScoreTeamPage() {
                         {hasGap && <TriangleAlert size={12} className="text-amber-500 flex-shrink-0 ml-auto" />}
                       </div>
 
-                      <div key={`${dim.key}-self`} className={cn("px-4 py-3 flex items-center justify-center border-b border-border", hasGap && "bg-amber-50")}>
+                      <div className={cn("px-4 py-3 flex items-center justify-center border-b border-border", hasGap && "bg-amber-50")}>
                         <RatingBadge score={selfScore ?? 0} size="md" />
                       </div>
 
-                      <div key={`${dim.key}-mgr`} className={cn("px-4 py-3 flex items-center justify-center border-b border-border", hasGap && "bg-amber-50")}>
+                      <div className={cn("px-4 py-3 flex items-center justify-center border-b border-border", hasGap && "bg-amber-50")}>
                         {alreadyManagerScored ? (
                           <RatingBadge score={mgrScore ?? 0} size="md" />
                         ) : (
@@ -407,7 +416,7 @@ export default function ScoreTeamPage() {
                           </div>
                         )}
                       </div>
-                    </>
+                    </Fragment>
                   );
                 })}
               </div>
@@ -522,6 +531,22 @@ export default function ScoreTeamPage() {
         title={`Score My Team — ${currentLabel}`}
         subtitle={`${scored} of ${team.length} scored · ${readyToScore} ready to score`}
       />
+
+      {/* Window status banner */}
+      {scoreWindow && (
+        <div className={cn(
+          "flex items-center gap-2 text-xs px-3 py-2 rounded-sm border",
+          scoreWindow.open
+            ? "bg-success/5 border-success/20 text-success"
+            : "bg-warning/5 border-warning/20 text-warning"
+        )}>
+          <Calendar size={13} className="flex-shrink-0" />
+          {scoreWindow.open
+            ? `Scoring ${currentLabel} reviews — window closes ${currentLabel.split(" ")[0]} 7`
+            : `Scoring opens ${nextLabel.split(" ")[0]} 1`
+          }
+        </div>
+      )}
 
       {team.length === 0 ? (
         <EmptyState icon={<Users size={20} />} title="No team members" description="You have no direct reports to score." />

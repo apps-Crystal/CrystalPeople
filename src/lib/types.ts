@@ -11,6 +11,15 @@ export type CycleStatus =
   | "locked";
 export type GoalStatus = "active" | "completed" | "dropped";
 export type TaskStatus = "active" | "inactive";
+export type AssignmentStatus = "active" | "completed" | "dropped";
+export type AssignmentType = "goal" | "task";
+export type GrievanceStatus = "submitted" | "in_review" | "resolved" | "closed";
+export type GrievanceCategory =
+  | "workplace"
+  | "harassment"
+  | "policy"
+  | "compensation"
+  | "other";
 export type NotificationType =
   | "window_open"
   | "window_close"
@@ -119,6 +128,39 @@ export interface WeeklyCheckin {
   Improve: string;
   Concern: string;
   Submitted_At: string;
+}
+
+export interface Assignment {
+  Assignment_ID: string;
+  Employee_ID: string;
+  Manager_ID: string;
+  Month: string;
+  Year: string;
+  Title: string;
+  Description: string;
+  Target: string;
+  Type: AssignmentType;
+  Status: AssignmentStatus;
+  Drop_Reason: string;
+  Due_Date: string;
+  Progress_Note: string;
+  Self_Score: string;
+  Manager_Score: string;
+  Created_At: string;
+  Completed_At: string;
+}
+
+export interface Grievance {
+  Grievance_ID: string;
+  Employee_ID: string;
+  Subject: string;
+  Description: string;
+  Category: GrievanceCategory;
+  Status: GrievanceStatus;
+  Filed_At: string;
+  Reviewed_By: string;
+  Resolution_Notes: string;
+  Resolved_At: string;
 }
 
 export interface OrgChange {

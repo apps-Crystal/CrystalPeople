@@ -4,11 +4,11 @@ import {
   readSheet, cachedReadSheet, updateRowWhere, invalidateCache,
 } from "@/lib/sheets";
 import {
-  parseConfigRows, getScoreDimensions, isWindowOpen,
-  computeAverage, safeJsonParse, monthLabel,
+  parseConfigRows, getScoreDimensionsFromAssignments,
+  getManagerScoreWindow, computeAverage, safeJsonParse, monthLabel,
 } from "@/lib/utils";
 import { createNotification } from "@/lib/notifications";
-import type { Employee, Goal, Task, ReviewCycle } from "@/lib/types";
+import type { Employee, Assignment, ReviewCycle } from "@/lib/types";
 
 // ─── POST /api/monthly/manager-score ─────────────────────────────────────────
 
@@ -23,9 +23,13 @@ export async function POST(req: NextRequest) {
   const configRows = await cachedReadSheet("Config") as { Key: string; Value: string }[];
   const config = parseConfigRows(configRows);
 
-  // Window check for manager role
-  if (!isWindowOpen(session.role, config)) {
-    return NextResponse.json({ error: "Scoring window is currently closed" }, { status: 400 });
+  // First-7-days-of-next-month window check
+  const scoreWindow = getManagerScoreWindow(config);
+  if (!scoreWindow.open) {
+    const nextMonthLabel = monthLabel(scoreWindow.opensNextMonth, scoreWindow.opensNextYear);
+    return NextResponse.json({
+      error: `Manager scoring opens on the 1st of ${nextMonthLabel}`,
+    }, { status: 400 });
   }
 
   const body = await req.json();
@@ -43,38 +47,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Comments must be at least 20 characters" }, { status: 400 });
   }
 
-  const month = String(config.current_month);
-  const year = String(config.current_year);
+  const scoreMonth = String(scoreWindow.scoreMonth);
+  const scoreYear = String(scoreWindow.scoreYear);
 
-  const [employees, goals, tasks, cycles] = await Promise.all([
+  const [employees, assignments, cycles] = await Promise.all([
     cachedReadSheet("Employees") as unknown as Promise<Employee[]>,
-    readSheet("Goals") as unknown as Promise<Goal[]>,
-    readSheet("Tasks") as unknown as Promise<Task[]>,
+    cachedReadSheet("Assignments") as unknown as Promise<Assignment[]>,
     readSheet("Review_Cycles") as unknown as Promise<ReviewCycle[]>,
   ]);
 
   const employee = (employees as Employee[]).find(e => e.Employee_ID === employee_id);
   if (!employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
 
-  // Validate reporting relationship for managers
   if (session.role === "manager" && employee.Manager_ID !== session.userId) {
     return NextResponse.json({ error: "Forbidden: not your direct report" }, { status: 403 });
   }
 
   // Employee must have self-scored first
   const cycle = (cycles as ReviewCycle[]).find(
-    c => c.Employee_ID === employee_id && c.Month === month && c.Year === year
+    c => c.Employee_ID === employee_id && c.Month === scoreMonth && c.Year === scoreYear
   );
   if (!cycle || cycle.Status !== "self_scored") {
     return NextResponse.json({ error: "Employee must complete self-assessment first" }, { status: 400 });
   }
 
-  // Validate all dimension scores
-  const empGoals = (goals as Goal[]).filter(
-    g => g.Employee_ID === employee_id && g.Month === month && g.Year === year
+  // Get score dimensions from assignments for that month
+  const empAssignments = (assignments as Assignment[]).filter(
+    a => a.Employee_ID === employee_id && a.Month === scoreMonth && a.Year === scoreYear
   );
-  const empTasks = (tasks as Task[]).filter(t => t.Employee_ID === employee_id);
-  const dimensions = getScoreDimensions(employee, empGoals, empTasks);
+  const dimensions = getScoreDimensionsFromAssignments(empAssignments);
 
   for (const dim of dimensions) {
     const score = scores[dim.key];
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Compute flagged dimensions (gap > 1 between self and manager score)
+  // Compute flagged dimensions (gap > 1)
   const selfScores = safeJsonParse<Record<string, number>>(cycle.Self_Scores, {});
   const flaggedDimensions = dimensions
     .filter(d => {
@@ -112,45 +113,18 @@ export async function POST(req: NextRequest) {
 
   invalidateCache("Review_Cycles");
 
-  // Update individual goal/task manager scores
+  // Update Assignment.Manager_Score fields
   for (const dim of dimensions) {
-    if (dim.type === "goal" && scores[dim.key] !== undefined) {
-      await updateRowWhere("Goals", "Goal_ID", dim.key, {
+    if (dim.type !== "behaviour" && scores[dim.key] !== undefined) {
+      await updateRowWhere("Assignments", "Assignment_ID", dim.key, {
         Manager_Score: String(scores[dim.key]),
       });
-    } else if (dim.type === "task" && scores[dim.key] !== undefined) {
-      const taskRow = empTasks.find(t => t.Task_ID === dim.key);
-      if (taskRow) {
-        const monthlyScores = safeJsonParse<Array<{
-          month: number; year: number; self_score: number; manager_score: number;
-        }>>(taskRow.Monthly_Scores, []);
-
-        const idx = monthlyScores.findIndex(
-          ms => ms.month === config.current_month && ms.year === config.current_year
-        );
-        if (idx >= 0) {
-          monthlyScores[idx].manager_score = scores[dim.key];
-        } else {
-          monthlyScores.push({
-            month: config.current_month,
-            year: config.current_year,
-            self_score: 0,
-            manager_score: scores[dim.key],
-          });
-        }
-        await updateRowWhere("Tasks", "Task_ID", dim.key, {
-          Monthly_Scores: JSON.stringify(monthlyScores),
-          Updated_At: new Date().toISOString(),
-        });
-      }
     }
   }
+  invalidateCache("Assignments");
 
-  invalidateCache("Goals");
-  invalidateCache("Tasks");
-
-  // Notify the employee that manager has scored
-  const label = monthLabel(config.current_month, config.current_year);
+  // Notify the employee
+  const label = monthLabel(scoreWindow.scoreMonth, scoreWindow.scoreYear);
   void createNotification(
     employee_id,
     "manual",

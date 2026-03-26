@@ -10,9 +10,10 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { RatingBadge } from "@/components/ui/RatingBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageLoader } from "@/components/ui/Spinner";
+import { Select } from "@/components/ui/Input";
 import { cn, monthLabel } from "@/lib/utils";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
-import type { Goal, ConfigMap } from "@/lib/types";
+import type { Goal, Employee, ConfigMap } from "@/lib/types";
 
 const STATUS_VARIANT: Record<string, "active" | "complete" | "dropped"> = {
   active: "active",
@@ -41,6 +42,10 @@ export default function GoalsPage() {
   const [dropError, setDropError] = useState("");
   const [dropLoading, setDropLoading] = useState(false);
 
+  // For managers: employee selector
+  const [teamMembers, setTeamMembers] = useState<Employee[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+
   // Edit
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -49,31 +54,61 @@ export default function GoalsPage() {
   const [editError, setEditError] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const isManager = user?.role === "manager" || user?.role === "hr" || user?.role === "md";
+
+  const fetchGoals = useCallback(async (empId: string) => {
+    if (!empId) return;
     setLoading(true);
     try {
-      const [goalsRes, configRes] = await Promise.all([
-        fetch("/api/goals"),
-        fetch("/api/config"),
-      ]);
-      if (goalsRes.ok) {
-        const data = await goalsRes.json();
+      const res = await fetch(`/api/goals?employee_id=${empId}`);
+      if (res.ok) {
+        const data = await res.json();
         setGoals(data.goals ?? []);
-      }
-      if (configRes.ok) {
-        const data = await configRes.json();
-        setConfig(data.config);
       }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // Initial load: config + team members (runs once)
+  useEffect(() => {
+    if (!user) return;
+
+    fetch("/api/config").then(r => r.json()).then(d => setConfig(d.config));
+
+    if (isManager) {
+      fetch("/api/employees").then(r => r.json()).then(data => {
+        const emps = (data.employees ?? []) as Employee[];
+        const team = user.role === "manager"
+          ? emps.filter(e => e.Manager_ID === user.userId && e.Status === "active" && e.Employee_ID !== user.userId)
+          : emps.filter(e => e.Status === "active" && e.Employee_ID !== user.userId);
+        const whiteCollar = team.filter(e => e.Employee_Type === "white_collar");
+        setTeamMembers(whiteCollar);
+        if (whiteCollar.length > 0) {
+          setSelectedEmployeeId(whiteCollar[0].Employee_ID);
+        } else {
+          setLoading(false);
+        }
+      });
+    } else {
+      fetchGoals(user.userId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Fetch goals whenever selectedEmployeeId changes
+  useEffect(() => {
+    if (isManager && selectedEmployeeId) {
+      fetchGoals(selectedEmployeeId);
+    }
+  }, [selectedEmployeeId, isManager, fetchGoals]);
 
   const activeCount = goals.filter(g => g.Status === "active").length;
   const maxGoals = config?.max_goals ?? 5;
   const minGoals = config?.min_goals ?? 3;
+
+  const targetEmpId = isManager ? selectedEmployeeId : user?.userId ?? "";
+  const selectedEmployee = teamMembers.find(e => e.Employee_ID === selectedEmployeeId);
 
   async function handleAddGoal() {
     setAddError("");
@@ -85,13 +120,16 @@ export default function GoalsPage() {
       const res = await fetch("/api/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: addTitle, description: addDesc, target: addTarget }),
+        body: JSON.stringify({
+          title: addTitle, description: addDesc, target: addTarget,
+          employee_id: targetEmpId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setAddError(data.error ?? "Failed to add goal"); return; }
       setAddOpen(false);
       setAddTitle(""); setAddDesc(""); setAddTarget("");
-      await fetchData();
+      await fetchGoals(targetEmpId);
     } finally {
       setAddLoading(false);
     }
@@ -103,7 +141,7 @@ export default function GoalsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "completed" }),
     });
-    await fetchData();
+    await fetchGoals(targetEmpId);
   }
 
   async function handleDrop() {
@@ -120,7 +158,7 @@ export default function GoalsPage() {
       const data = await res.json();
       if (!res.ok) { setDropError(data.error ?? "Failed to drop goal"); return; }
       setDropGoal(null); setDropReason("");
-      await fetchData();
+      await fetchGoals(targetEmpId);
     } finally {
       setDropLoading(false);
     }
@@ -149,7 +187,7 @@ export default function GoalsPage() {
       const data = await res.json();
       if (!res.ok) { setEditError(data.error ?? "Failed to update goal"); return; }
       setExpandedId(null);
-      await fetchData();
+      await fetchGoals(targetEmpId);
     } finally {
       setEditLoading(false);
     }
@@ -162,8 +200,8 @@ export default function GoalsPage() {
   return (
     <div className="max-w-2xl space-y-5">
       <PageHeader
-        title="My Goals"
-        subtitle={currentLabel}
+        title={isManager ? "Team Goals" : "My Goals"}
+        subtitle={isManager ? `Assign & manage goals for white-collar employees — ${currentLabel}` : currentLabel}
         action={
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-secondary">{activeCount}/{maxGoals} goals</span>
@@ -171,9 +209,9 @@ export default function GoalsPage() {
               size="sm"
               icon={<Plus size={13} />}
               onClick={() => { setAddOpen(true); setAddError(""); }}
-              disabled={activeCount >= maxGoals}
+              disabled={activeCount >= maxGoals || (isManager && !selectedEmployeeId)}
             >
-              Add Goal
+              {isManager ? "Assign Goal" : "Add Goal"}
             </Button>
           </div>
         }
@@ -185,11 +223,29 @@ export default function GoalsPage() {
         </div>
       )}
 
+      {/* Manager: employee selector */}
+      {isManager && (
+        <div className="enterprise-card p-4">
+          {teamMembers.length === 0 ? (
+            <p className="text-xs text-text-secondary">No white-collar employees in your team.</p>
+          ) : (
+            <Select
+              label="Select Team Member"
+              value={selectedEmployeeId}
+              onChange={e => {
+                setSelectedEmployeeId(e.target.value);
+              }}
+              options={teamMembers.map(e => ({ value: e.Employee_ID, label: `${e.Name} — ${e.Department}` }))}
+            />
+          )}
+        </div>
+      )}
+
       {/* Min goals notice */}
       {activeCount < minGoals && (
         <div className="flex items-start gap-2 text-xs bg-warning/10 border border-warning/20 rounded-sm px-3 py-2.5 text-warning">
           <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-          <span>You need at least <strong>{minGoals}</strong> active goals before self-scoring opens. {activeCount}/{minGoals} set.</span>
+          <span>{isManager ? `${selectedEmployee?.Name ?? "This employee"} needs` : "You need"} at least <strong>{minGoals}</strong> active goals before self-scoring opens. {activeCount}/{minGoals} set.</span>
         </div>
       )}
 
@@ -197,8 +253,14 @@ export default function GoalsPage() {
         <EmptyState
           icon={<Target size={20} />}
           title="No goals yet"
-          description={`Add ${minGoals}–${maxGoals} goals for ${currentLabel} to participate in your monthly review.`}
-          action={{ label: "Add First Goal", onClick: () => setAddOpen(true) }}
+          description={isManager
+            ? `Assign ${minGoals}–${maxGoals} goals to ${selectedEmployee?.Name ?? "this employee"} for ${currentLabel}.`
+            : `Add ${minGoals}–${maxGoals} goals for ${currentLabel} to participate in your monthly review.`}
+          action={
+            (!isManager || selectedEmployeeId)
+              ? { label: isManager ? "Assign First Goal" : "Add First Goal", onClick: () => setAddOpen(true) }
+              : undefined
+          }
         />
       ) : (
         <div className="space-y-3">
@@ -224,7 +286,7 @@ export default function GoalsPage() {
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title="Add Goal"
+        title={isManager ? `Assign Goal to ${selectedEmployee?.Name ?? ""}` : "Add Goal"}
         footer={
           <>
             <Button variant="secondary" size="sm" onClick={() => setAddOpen(false)}>Cancel</Button>
