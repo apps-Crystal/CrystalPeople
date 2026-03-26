@@ -1,19 +1,14 @@
-[00:00:02.462] Server  WARN    ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
-[00:00:02.798] Server  LOG     ✓ Ready in 2.3s
-[00:00:49.884] Server  ERROR   (node:56876) [DEP0108] DeprecationWarning: zlib.bytesRead is deprecated and will change its meaning in the future. Use zlib.bytesWritten instead.
+[00:00:07.555] Server  WARN    ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[00:00:08.185] Server  LOG     ✓ Ready in 6.7s
+[00:00:59.304] Server  LOG     ✓ Compiled in 2.5s
+[00:03:48.715] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:04:42.875] Server  ERROR   (node:52844) [DEP0108] DeprecationWarning: zlib.bytesRead is deprecated and will change its meaning in the future. Use zlib.bytesWritten instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-[00:01:07.762] Browser ERROR   Each child in a list should have a unique "key" prop.%s%s See https://react.dev/link/warning-keys for more information. 
+[00:05:12.800] Server  LOG     ○ Compiling /monthly/my-review ...
+[00:05:20.140] Browser ERROR   Each child in a list should have a unique "key" prop.%s%s See https://react.dev/link/warning-keys for more information. 
 
-Check the render method of `div`.  It was passed a child from ScoreTeamPage.
-[00:05:52.201] Server  LOG     ✓ Compiled in 988ms
-[00:08:33.251] Server  LOG     ✓ Compiled in 106ms
-[00:09:40.080] Server  LOG     ✓ Compiled in 387ms
-[00:10:56.382] Server  LOG     ✓ Compiled in 1287ms
-[00:11:26.259] Server  LOG     ✓ Compiled in 65ms
-[00:11:34.352] Server  LOG     ✓ Compiled in 198ms
-[00:11:40.666] Server  LOG     ✓ Compiled in 498ms
-[00:11:53.491] Server  LOG     ✓ Compiled in 54ms
-[00:13:25.260] Server  LOG     ✓ Compiled in 75ms
-[00:28:07.860] Server  LOG     ✓ Compiled in 1225ms
-[00:33:12.579] Server  ERROR   ⨯ Error: Quota exceeded for quota metric 'Write requests' and limit 'Write requests per minute per user' of service 'sheets.googleapis.com' for consumer 'project_number:546738251087'.
-[00:33:21.633] Server  ERROR   ⨯ Error: Quota exceeded for quota metric 'Write requests' and limit 'Write requests per minute per user' of service 'sheets.googleapis.com' for consumer 'project_number:546738251087'.
+Check the render method of `div`.  It was passed a child from MyReviewPage.
+[00:10:26.869] Server  LOG     ✓ Finished filesystem cache database compaction in 11.5s
+[00:15:30.332] Browser ERROR   Each child in a list should have a unique "key" prop.%s%s See https://react.dev/link/warning-keys for more information. 
+
+Check the render method of `div`.  It was passed a child from MyReviewPage.
