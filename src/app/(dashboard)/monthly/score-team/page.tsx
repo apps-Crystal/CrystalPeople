@@ -528,7 +528,7 @@ export default function ScoreTeamPage() {
   return (
     <div className="max-w-3xl space-y-5">
       <PageHeader
-        title={`Score My Team — ${currentLabel}`}
+        title={`Review My Team — ${currentLabel}`}
         subtitle={`${scored} of ${team.length} scored · ${readyToScore} ready to score`}
       />
 

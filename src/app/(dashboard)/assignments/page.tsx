@@ -240,7 +240,7 @@ export default function AssignmentsPage() {
   return (
     <div className="max-w-2xl space-y-5">
       <PageHeader
-        title="Assignments"
+        title={isManager ? "Assigned Tasks" : "My Tasks"}
         subtitle={isManager ? "Manage work assignments for your team" : "Your assigned work items"}
         action={
           isManager && selectedEmployeeId ? (
@@ -274,13 +274,13 @@ export default function AssignmentsPage() {
       {assignments.length === 0 ? (
         <EmptyState
           icon={<Briefcase size={20} />}
-          title={isManager ? "No assignments yet" : "No assignments"}
+          title={isManager ? "No tasks assigned yet" : "No tasks assigned"}
           description={
             isManager
               ? `Use the Assign button to create work items for ${selectedEmployee?.Name ?? "this employee"}.`
-              : "Your manager hasn't assigned any work items yet."
+              : "Your manager hasn't assigned any tasks yet."
           }
-          action={isManager && selectedEmployeeId ? { label: "Assign First Item", onClick: () => setAddOpen(true) } : undefined}
+          action={isManager && selectedEmployeeId ? { label: "Assign First Task", onClick: () => setAddOpen(true) } : undefined}
         />
       ) : (
         <div className="space-y-3">
@@ -368,7 +368,7 @@ export default function AssignmentsPage() {
       <Modal
         open={!!editAssignment}
         onClose={() => setEditAssignment(null)}
-        title="Edit Assignment"
+        title="Edit Task"
         footer={
           <>
             <Button variant="secondary" size="sm" onClick={() => setEditAssignment(null)}>Cancel</Button>
@@ -560,9 +560,6 @@ function AssignmentCard({ assignment: a, isManager, onEdit, onProgress }: {
           {isManager && a.Status === "active" && (
             <Button size="sm" variant="secondary" onClick={() => onEdit(a)}>Edit</Button>
           )}
-          {!isManager && a.Status === "active" && (
-            <Button size="sm" variant="secondary" onClick={() => onProgress(a)}>Update</Button>
-          )}
         </div>
       </div>
     </div>
@@ -584,7 +581,7 @@ function CompletedSection({ assignments, isManager, onEdit, onProgress }: {
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-text-secondary hover:bg-primary-50 transition-colors"
       >
-        <span>Past Assignments ({assignments.length})</span>
+        <span>Past Tasks ({assignments.length})</span>
         {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
       </button>
       {open && (

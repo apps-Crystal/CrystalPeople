@@ -4,7 +4,7 @@ import { readSheet, cachedReadSheet } from "@/lib/sheets";
 import { getWeekStart, getWeekLabel, parseConfigRows, monthLabel, computeAverage, safeJsonParse } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { RatingBadge } from "@/components/ui/RatingBadge";
-import { MessageSquare, Users, TrendingUp, Clock, CheckCircle } from "lucide-react";
+import { MessageSquare, Users, TrendingUp, Clock, CheckCircle, Briefcase } from "lucide-react";
 import type { WeeklyReflection, WeeklyCheckin, Employee, ReviewCycle } from "@/lib/types";
 
 export default async function DashboardPage() {
@@ -64,6 +64,11 @@ export default async function DashboardPage() {
   const hasFeedback = !!myCheckin && !myReflection?.Acknowledged_At;
   const weekLabel = getWeekLabel(week);
 
+  // Scope label: Company for hr/md, Team for manager
+  const isCompany = role === "hr" || role === "md";
+  const scope = isCompany ? "Company" : "Team";
+  const memberWord = isCompany ? "employee" : "team member";
+
   // Compute self average for display
   const selfAvg = myCycle?.Self_Scores
     ? computeAverage(Object.values(safeJsonParse<Record<string, number>>(myCycle.Self_Scores, {})))
@@ -73,10 +78,12 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       {/* Greeting */}
       <div>
-        <h1 className="text-lg font-bold text-text-primary">
+        <h1 className="text-lg font-bold text-text-primary">Quick Actions</h1>
+        <p className="text-xs text-text-secondary mt-0.5">
           Good {getGreeting()}, {name.split(" ")[0]}
-        </h1>
-        <p className="text-xs text-text-secondary mt-0.5">{weekLabel}</p>
+          {role !== "employee" && <span className="text-primary-400"> · {scope} Overview</span>}
+          {" · "}{weekLabel}
+        </p>
       </div>
 
       {/* Weekly status cards */}
@@ -91,7 +98,7 @@ export default async function DashboardPage() {
               : <Badge variant="pending" label="Pending" />
             }
           </div>
-          <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">Weekly Reflection</p>
+          <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">My Weekly Reflection</p>
           <p className="text-sm font-medium text-text-primary mt-1 group-hover:text-primary-600 transition-colors">
             {myReflection
               ? hasFeedback ? "New feedback — tap to view →" : "Reflection submitted ✓"
@@ -111,10 +118,10 @@ export default async function DashboardPage() {
                 label={`${teamCheckedIn}/${teamSize}`}
               />
             </div>
-            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">Team Check-Ins</p>
+            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">{scope} Check-Ins</p>
             <p className="text-sm font-medium text-text-primary mt-1 group-hover:text-primary-600 transition-colors">
               {teamSize === 0
-                ? "No team members"
+                ? `No ${memberWord}s`
                 : teamCheckedIn === teamSize
                   ? "All check-ins complete ✓"
                   : `${teamSize - teamCheckedIn} pending →`}
@@ -122,7 +129,24 @@ export default async function DashboardPage() {
           </Link>
         )}
 
-        {/* Monthly Self-Assessment card */}
+        {/* Assign Tasks shortcut */}
+        {(role === "manager" || role === "hr" || role === "md") && (
+          <Link href="/assignments" className="enterprise-card p-4 hover:shadow-md transition-shadow block group">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-8 h-8 rounded-sm bg-primary-50 flex items-center justify-center">
+                <Briefcase size={15} className="text-primary-600" />
+              </div>
+            </div>
+            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">
+              Assign Tasks to {scope}
+            </p>
+            <p className="text-sm font-medium text-text-primary mt-1 group-hover:text-primary-600 transition-colors">
+              Manage work assignments →
+            </p>
+          </Link>
+        )}
+
+        {/* Monthly review card */}
         {role === "employee" ? (
           <MonthlyEmployeeCard cycle={myCycle} curLabel={curLabel} selfAvg={selfAvg} windowOpen={
             new Date().getDate() >= config.window_open_day &&
@@ -141,13 +165,13 @@ export default async function DashboardPage() {
                 label={`${teamScoredCount}/${teamSize}`}
               />
             </div>
-            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">Team Monthly Scoring</p>
+            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">{scope} Monthly Reviews</p>
             <p className="text-sm font-medium text-text-primary mt-1 group-hover:text-primary-600 transition-colors">
               {teamSize === 0
-                ? "No team members"
+                ? `No ${memberWord}s`
                 : teamScoredCount === teamSize
                   ? "All scored ✓"
-                  : `${teamSize - teamScoredCount} of ${teamSize} scored →`}
+                  : `${teamSize - teamScoredCount} of ${teamSize} to score →`}
             </p>
           </Link>
         )}
@@ -155,7 +179,9 @@ export default async function DashboardPage() {
 
       {/* Pending actions */}
       <div className="enterprise-card p-5">
-        <h2 className="font-semibold text-sm text-primary-900 mb-3">Pending Actions</h2>
+        <h2 className="font-semibold text-sm text-primary-900 mb-3">
+          {role === "employee" ? "Pending Actions" : `${scope} Pending Actions`}
+        </h2>
         <div className="space-y-1">
           {!myReflection && (
             <PendingItem href="/weekly/reflection" icon={<MessageSquare size={14} />}
@@ -176,12 +202,12 @@ export default async function DashboardPage() {
           {(role === "manager" || role === "hr" || role === "md") && teamReflected > teamCheckedIn && (
             <PendingItem href="/weekly/checkin" icon={<Users size={14} />}
               title={`${teamReflected - teamCheckedIn} check-in${teamReflected - teamCheckedIn !== 1 ? "s" : ""} to write`}
-              subtitle={`${teamReflected} team member${teamReflected !== 1 ? "s" : ""} submitted reflections`}
+              subtitle={`${teamReflected} ${memberWord}${teamReflected !== 1 ? "s" : ""} submitted reflections`}
               urgency="medium" />
           )}
           {(role === "manager" || role === "hr" || role === "md") && teamScoredCount < teamSize && teamSize > 0 && (
             <PendingItem href="/monthly/score-team" icon={<TrendingUp size={14} />}
-              title={`${teamSize - teamScoredCount} team member${teamSize - teamScoredCount !== 1 ? "s" : ""} to score`}
+              title={`${teamSize - teamScoredCount} ${memberWord}${teamSize - teamScoredCount !== 1 ? "s" : ""} to score`}
               subtitle={curLabel} urgency="medium" />
           )}
           {(role === "hr" || role === "md") && (

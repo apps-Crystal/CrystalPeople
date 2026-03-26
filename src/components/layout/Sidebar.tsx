@@ -6,53 +6,69 @@ import { useState } from "react";
 import {
   LayoutDashboard, ClipboardList, Briefcase,
   Users, Shield, TrendingUp,
-  ChevronLeft, Menu, LogOut, Star, ChevronDown, ShieldAlert, Clock,
+  ChevronLeft, Menu, LogOut, Star, ShieldAlert,
+  Clock, BarChart3,
 } from "lucide-react";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
 import type { Role } from "@/lib/types";
 
-interface NavChild { name: string; href: string; roles?: Role[]; comingSoon?: boolean; }
 interface NavItem {
-  name: string; href?: string;
-  icon: React.ComponentType<{ className?: string }>;
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
   roles: (Role | "All")[];
-  children?: NavChild[];
+  comingSoon?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["All"] },
-  { name: "Weekly Reflection", href: "/weekly/reflection", icon: ClipboardList, roles: ["employee","manager","hr","md"] },
-  { name: "Monthly Review", href: "/monthly/self-score", icon: Star, roles: ["employee","manager","hr","md"] },
-  { name: "My Assignments", href: "/assignments", icon: Briefcase, roles: ["employee","manager","hr","md"] },
-  { name: "Grievances", href: "/grievances", icon: ShieldAlert, roles: ["employee","manager","hr","md"] },
+interface NavSection {
+  label: string;
+  roles: (Role | "All")[];
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
   {
-    name: "My Team", icon: Users, roles: ["manager","hr","md"],
-    children: [
-      { name: "Team Overview", href: "/team", comingSoon: true },
-      { name: "Weekly Check-In", href: "/weekly/checkin" },
-      { name: "Score My Team", href: "/monthly/score-team" },
-      { name: "Assignments", href: "/assignments" },
+    label: "My",
+    roles: ["All"],
+    items: [
+      { name: "Quick Actions", href: "/dashboard", icon: LayoutDashboard, roles: ["All"] },
+      { name: "My Reflection", href: "/weekly/reflection", icon: ClipboardList, roles: ["employee","manager","hr","md"] },
+      { name: "My Review", href: "/monthly/self-score", icon: Star, roles: ["employee","manager","hr","md"] },
+      { name: "My Tasks", href: "/assignments", icon: Briefcase, roles: ["employee"] },
+      { name: "My Grievances", href: "/grievances", icon: ShieldAlert, roles: ["employee","manager","hr","md"] },
     ],
   },
   {
-    name: "HR Admin", icon: Shield, roles: ["hr","md"],
-    children: [
-      { name: "Employees", href: "/admin/employees" },
-      { name: "Grievances", href: "/admin/grievances" },
-      { name: "Review Monitor", href: "/admin/monitoring" },
-      { name: "Org Changes", href: "/admin/org-changes", comingSoon: true },
-      { name: "Increments", href: "/admin/increments", comingSoon: true },
-      { name: "Reports", href: "/admin/reports", comingSoon: true },
-      { name: "Notifications", href: "/admin/notifications", comingSoon: true },
-      { name: "Config", href: "/admin/config", comingSoon: true },
+    label: "My Team",
+    roles: ["manager","hr","md"],
+    items: [
+      { name: "Weekly Check-In", href: "/weekly/checkin", icon: Users, roles: ["manager","hr","md"] },
+      { name: "Review My Team", href: "/monthly/score-team", icon: TrendingUp, roles: ["manager","hr","md"] },
+      { name: "Assigned Tasks", href: "/assignments", icon: Briefcase, roles: ["manager","hr","md"] },
+      { name: "Team Overview", href: "/team", icon: BarChart3, roles: ["manager","hr","md"], comingSoon: true },
     ],
   },
   {
-    name: "Executive", icon: TrendingUp, roles: ["md"],
-    children: [
-      { name: "Exec Dashboard", href: "/executive", comingSoon: true },
-      { name: "Approve Increments", href: "/executive/increments", comingSoon: true },
-      { name: "Rating Overrides", href: "/executive/overrides", comingSoon: true },
+    label: "HR Admin",
+    roles: ["hr","md"],
+    items: [
+      { name: "Employees", href: "/admin/employees", icon: Users, roles: ["hr","md"] },
+      { name: "Grievances", href: "/admin/grievances", icon: ShieldAlert, roles: ["hr","md"] },
+      { name: "Review Monitor", href: "/admin/monitoring", icon: Shield, roles: ["hr","md"] },
+      { name: "Org Changes", href: "/admin/org-changes", icon: Users, roles: ["hr","md"], comingSoon: true },
+      { name: "Increments", href: "/admin/increments", icon: TrendingUp, roles: ["hr","md"], comingSoon: true },
+      { name: "Reports", href: "/admin/reports", icon: BarChart3, roles: ["hr","md"], comingSoon: true },
+      { name: "Notifications", href: "/admin/notifications", icon: ClipboardList, roles: ["hr","md"], comingSoon: true },
+      { name: "Config", href: "/admin/config", icon: Shield, roles: ["hr","md"], comingSoon: true },
+    ],
+  },
+  {
+    label: "Executive",
+    roles: ["md"],
+    items: [
+      { name: "Exec Dashboard", href: "/executive", icon: TrendingUp, roles: ["md"], comingSoon: true },
+      { name: "Approve Increments", href: "/executive/increments", icon: TrendingUp, roles: ["md"], comingSoon: true },
+      { name: "Rating Overrides", href: "/executive/overrides", icon: Shield, roles: ["md"], comingSoon: true },
     ],
   },
 ];
@@ -72,6 +88,8 @@ export function Sidebar() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/auth/login";
   }
+
+  const visibleSections = navSections.filter(s => canAccess(s.roles));
 
   return (
     <div className={`flex flex-col bg-primary-900 border-r border-primary-800 text-white shadow-xl h-screen sticky top-0 transition-all duration-300 z-50 custom-scrollbar overflow-y-auto ${isCollapsed ? "w-16" : "w-60"}`}>
@@ -96,105 +114,73 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto py-4 px-2 overflow-x-hidden">
-        <nav className="space-y-1">
-          {navItems.filter(item => canAccess(item.roles)).map((item) => {
-            // Filter out coming-soon children for active nav rendering
-            const activeChildren = item.children?.filter(c => !c.comingSoon && (!c.roles || canAccess(c.roles as Role[])));
-            // Hide groups where all children are coming soon
-            if (!item.href && activeChildren?.length === 0) return null;
-
-            const isActive = item.href
-              ? pathname === item.href
-              : (activeChildren?.some(c => pathname === c.href || pathname.startsWith(c.href + "/")) ?? false);
+      <div className="flex-1 overflow-y-auto py-3 px-2 overflow-x-hidden">
+        <nav className="space-y-4">
+          {visibleSections.map((section, si) => {
+            const visibleItems = section.items.filter(item => canAccess(item.roles));
+            if (visibleItems.length === 0) return null;
 
             return (
-              <div key={item.name} className="flex flex-col relative group/navitem">
-                {item.href ? (
-                  <Link
-                    href={item.href}
-                    title={item.name}
-                    className={`group flex items-center py-2 text-sm font-medium rounded-sm transition-colors ${isCollapsed ? "justify-center px-0" : "px-2"} ${
-                      isActive
-                        ? (isCollapsed ? "bg-primary-800 text-accent-400" : "bg-primary-800 text-accent-400 border-l-2 border-accent-500")
-                        : (isCollapsed ? "text-primary-100 hover:bg-primary-800 hover:text-white" : "text-primary-100 hover:bg-primary-800 hover:text-white border-l-2 border-transparent")
-                    }`}
-                  >
-                    <item.icon className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? "" : "mr-3"} ${isActive ? "text-accent-500" : "text-primary-300 group-hover:text-primary-100"}`} />
-                    {!isCollapsed && <span className="truncate">{item.name}</span>}
-                  </Link>
-                ) : (
-                  <div className="mb-1">
-                    <div
-                      onClick={() => isCollapsed && setIsCollapsed(false)}
-                      title={item.name}
-                      className={`group flex items-center py-2 text-sm font-medium rounded-sm text-primary-100 hover:bg-primary-800 hover:text-white cursor-pointer ${isCollapsed ? "justify-center px-0" : "justify-between px-2"}`}
-                    >
-                      <div className="flex items-center min-w-0">
-                        <item.icon className={`h-5 w-5 flex-shrink-0 text-primary-300 group-hover:text-primary-100 ${isCollapsed ? "" : "mr-3"}`} />
-                        {!isCollapsed && <span className="truncate">{item.name}</span>}
-                      </div>
-                      {!isCollapsed && <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0" />}
-                    </div>
-                    {!isCollapsed && activeChildren && (
-                      <div className="mt-1 space-y-1 pl-9">
-                        {activeChildren.map((child) => {
-                            const isChildActive = pathname === child.href || pathname.startsWith(child.href + "/");
-                            return (
-                              <Link
-                                key={child.href}
-                                href={child.href}
-                                className={`flex items-center px-2 py-1.5 text-xs font-medium rounded-sm transition-colors ${isChildActive ? "text-accent-400 font-semibold" : "text-primary-200 hover:text-white hover:bg-primary-800/50"}`}
-                              >
-                                <span className="truncate">{child.name}</span>
-                              </Link>
-                            );
-                          })}
-                      </div>
-                    )}
-                  </div>
+              <div key={section.label}>
+                {/* Section header */}
+                {!isCollapsed && (
+                  <p className="px-2 mb-1 text-[10px] font-bold text-primary-500 uppercase tracking-widest">
+                    {section.label}
+                  </p>
                 )}
-                {isCollapsed && (
-                  <div className="absolute left-14 top-1 hidden group-hover/navitem:block bg-primary-800 text-white text-xs px-2 py-1 rounded-sm whitespace-nowrap z-[60] shadow-lg border border-primary-700">
-                    {item.name}
-                  </div>
+                {isCollapsed && si > 0 && (
+                  <div className="border-t border-primary-800/60 mb-1" />
                 )}
+                <div className="space-y-0.5">
+                  {visibleItems.map(item => {
+                    if (item.comingSoon) {
+                      if (isCollapsed) return null;
+                      return (
+                        <div
+                          key={item.href + item.name}
+                          title={`${item.name} — Coming soon`}
+                          className="flex items-center justify-between px-2 py-1.5 rounded-sm cursor-default"
+                        >
+                          <div className="flex items-center gap-3">
+                            <item.icon className="h-5 w-5 flex-shrink-0 text-primary-700" />
+                            <span className="text-xs text-primary-600 truncate">{item.name}</span>
+                          </div>
+                          <span className="flex items-center gap-0.5 text-[9px] font-medium text-primary-600 flex-shrink-0 ml-1">
+                            <Clock className="h-2.5 w-2.5" /> Soon
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+
+                    return (
+                      <div key={item.href + item.name} className="relative group/navitem">
+                        <Link
+                          href={item.href}
+                          title={item.name}
+                          className={`group flex items-center py-2 text-sm font-medium rounded-sm transition-colors ${isCollapsed ? "justify-center px-0" : "px-2"} ${
+                            isActive
+                              ? (isCollapsed ? "bg-primary-800 text-accent-400" : "bg-primary-800 text-accent-400 border-l-2 border-accent-500")
+                              : (isCollapsed ? "text-primary-100 hover:bg-primary-800 hover:text-white" : "text-primary-100 hover:bg-primary-800 hover:text-white border-l-2 border-transparent")
+                          }`}
+                        >
+                          <item.icon className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? "" : "mr-3"} ${isActive ? "text-accent-500" : "text-primary-300 group-hover:text-primary-100"}`} />
+                          {!isCollapsed && <span className="truncate">{item.name}</span>}
+                        </Link>
+                        {isCollapsed && (
+                          <div className="absolute left-14 top-1 hidden group-hover/navitem:block bg-primary-800 text-white text-xs px-2 py-1 rounded-sm whitespace-nowrap z-[60] shadow-lg border border-primary-700">
+                            {item.name}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
         </nav>
-
-        {/* Coming Soon section */}
-        {!isCollapsed && (() => {
-          const comingSoonItems = navItems
-            .filter(item => canAccess(item.roles))
-            .flatMap(item =>
-              item.children
-                ? item.children.filter(c => c.comingSoon && (!c.roles || canAccess(c.roles as Role[]))).map(c => ({ ...c, group: item.name }))
-                : []
-            );
-          if (comingSoonItems.length === 0) return null;
-          return (
-            <div className="mt-4 pt-4 border-t border-primary-800/60">
-              <div className="flex items-center gap-1.5 px-2 mb-2">
-                <Clock className="h-3 w-3 text-primary-500" />
-                <span className="text-[10px] font-semibold text-primary-500 uppercase tracking-widest">Coming Soon</span>
-              </div>
-              <div className="space-y-0.5">
-                {comingSoonItems.map(item => (
-                  <div
-                    key={item.href}
-                    title={`${item.name} — Coming soon`}
-                    className="flex items-center justify-between px-2 py-1.5 rounded-sm cursor-default"
-                  >
-                    <span className="text-xs text-primary-600 truncate">{item.name}</span>
-                    <span className="text-[9px] font-medium text-primary-600 bg-primary-800 px-1.5 py-0.5 rounded-sm flex-shrink-0 ml-1">Soon</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
       </div>
 
       {/* Footer */}

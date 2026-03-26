@@ -160,7 +160,7 @@ export default function MonthlyReviewPage() {
   return (
     <div className="max-w-2xl space-y-5">
       <div className="flex items-start justify-between gap-4">
-        <PageHeader title="Monthly Review" subtitle={currentLabel} />
+        <PageHeader title="My Monthly Review" subtitle={currentLabel} />
         {alreadyScored && <Badge variant={cycle.Status as "self_scored" | "manager_scored" | "acknowledged" | "locked" | "pending"} />}
       </div>
 

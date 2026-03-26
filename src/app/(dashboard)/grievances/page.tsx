@@ -94,7 +94,7 @@ export default function GrievancesPage() {
   return (
     <div className="max-w-2xl space-y-5">
       <PageHeader
-        title="Grievances"
+        title="My Grievances"
         subtitle="File and track your workplace grievances"
         action={
           <Button size="sm" icon={<Plus size={13} />} onClick={() => { setFileOpen(true); setFileError(""); setFileSuccess(false); }}>

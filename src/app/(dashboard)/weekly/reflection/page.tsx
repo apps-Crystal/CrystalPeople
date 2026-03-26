@@ -95,7 +95,7 @@ export default function ReflectionPage() {
     <div className="max-w-2xl space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <PageHeader title="Weekly Reflection" />
+          <PageHeader title="My Weekly Reflection" />
           <p className="text-xs text-text-secondary mt-0.5">{getWeekLabel(week)}</p>
         </div>
         {reflection && (
