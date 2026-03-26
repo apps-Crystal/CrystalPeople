@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/crpla/OneDrive/Desktop/aPPS/PMS/src/app/%28dashboard%29/layout.tsx"],"sourcesContent":["// Protected dashboard layout — middleware handles auth.\n// The AppShell (in root layout) provides sidebar + header.\nexport default function DashboardLayout({\n  children,\n}: {\n  children: React.ReactNode;\n}) {\n  return <>{children}</>;\n}\n"],"names":[],"mappings":"AAAA,wDAAwD;AACxD,2DAA2D;;;;;;;AAC5C,SAAS,gBAAgB,EACtC,QAAQ,EAGT;IACC,qBAAO;kBAAG;;AACZ"}}]
-}
