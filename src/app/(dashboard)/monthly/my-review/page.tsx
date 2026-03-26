@@ -192,4 +192,8 @@ export default function MyReviewPage() {
           <Button onClick={handleAcknowledge} loading={ackLoading} size="md" className="w-full">
             Acknowledge Review
           </Button>
-  
+        </div>
+      )}
+    </div>
+  );
+}
