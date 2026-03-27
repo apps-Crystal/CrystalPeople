@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       e => e.Manager_ID === session.userId && e.Status === "active" && e.Employee_ID !== session.userId
     );
   } else {
-    team = allEmployees.filter(e => e.Status === "active");
+    team = allEmployees.filter(e => e.Status === "active" && e.Employee_ID !== session.userId);
   }
 
   // Single employee scoring view
