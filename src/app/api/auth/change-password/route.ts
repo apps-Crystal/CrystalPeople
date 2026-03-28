@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Employee not found." }, { status: 404 });
   }
 
-  if (!verifyPassword(currentPassword, employee.Password_Hash)) {
+  if (!employee.Password_Hash || !verifyPassword(currentPassword, employee.Password_Hash)) {
     return NextResponse.json({ error: "Current password is incorrect." }, { status: 400 });
   }
 
