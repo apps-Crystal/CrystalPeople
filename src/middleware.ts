@@ -9,6 +9,9 @@ const PUBLIC_PATHS = [
   "/auth/",
   "/api/auth/login",
   "/api/auth/logout",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+  "/api/admin/seed-users",
   "/_next/",
   "/favicon.ico",
 ];

@@ -55,7 +55,6 @@ export async function POST(req: NextRequest) {
     Blockers: blockers.trim(),
     Mood: String(mood),
     Submitted_At: new Date().toISOString(),
-    Acknowledged_At: "",
   });
 
   return NextResponse.json({ success: true, reflectionId }, { status: 201 });

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, X, AlertCircle, Eye, Edit2, Info } from "lucide-react";
+import { CheckCircle2, X, AlertCircle, Edit2, Info } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Badge } from "@/components/ui/Badge";
 import { Spinner, PageLoader } from "@/components/ui/Spinner";
 import { cn, getWeekStart, getWeekLabel, fmtDateTime } from "@/lib/utils";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
@@ -30,8 +29,6 @@ interface FullCheckin {
   Submitted_At: string;
 }
 
-type ModalMode = "write" | "view";
-
 const MOODS = [
   { value: 1, emoji: "😞", label: "Low" },
   { value: 2, emoji: "😕", label: "Below Avg" },
@@ -48,7 +45,7 @@ export default function CheckinPage() {
 
   const [team, setTeam] = useState<TeamMemberStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<{ member: TeamMemberStatus; mode: ModalMode } | null>(null);
+  const [modal, setModal] = useState<{ member: TeamMemberStatus } | null>(null);
 
   const fetchTeam = useCallback(async () => {
     setLoading(true);
@@ -73,7 +70,6 @@ export default function CheckinPage() {
 
   const reflectedCount = team.filter(m => m.reflection_submitted).length;
   const checkinCount = team.filter(m => m.checkin_submitted).length;
-  const pendingCount = team.filter(m => m.reflection_submitted && !m.checkin_submitted).length;
 
   return (
     <div className="space-y-5">
@@ -106,7 +102,6 @@ export default function CheckinPage() {
                   <th className="text-left px-3 py-2.5 font-semibold text-text-secondary uppercase tracking-wide text-[11px]">Department</th>
                   <th className="text-center px-3 py-2.5 font-semibold text-text-secondary uppercase tracking-wide text-[11px]">Reflection</th>
                   <th className="text-center px-3 py-2.5 font-semibold text-text-secondary uppercase tracking-wide text-[11px]">Check-In</th>
-                  <th className="text-center px-3 py-2.5 font-semibold text-text-secondary uppercase tracking-wide text-[11px]">Acknowledged</th>
                   <th className="px-3 py-2.5 w-28" />
                 </tr>
               </thead>
@@ -124,25 +119,18 @@ export default function CheckinPage() {
                     <td className="px-3 py-3 text-center">
                       <StatusDot active={member.checkin_submitted} />
                     </td>
-                    <td className="px-3 py-3 text-center">
-                      <StatusDot active={member.acknowledged} />
-                    </td>
                     <td className="px-3 py-3 text-right">
-                      {!member.checkin_submitted ? (
-                        <button
-                          onClick={() => setModal({ member, mode: "write" })}
-                          className="flex items-center gap-1.5 h-7 px-3 text-[11px] font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-sm transition-colors ml-auto"
-                        >
-                          <Edit2 size={11} /> Write Check-In
-                        </button>
-                      ) : member.checkin_submitted ? (
-                        <button
-                          onClick={() => setModal({ member, mode: "view" })}
-                          className="flex items-center gap-1.5 h-7 px-3 text-[11px] font-semibold border border-border text-text-secondary hover:text-text-primary hover:bg-primary-50 rounded-sm transition-colors ml-auto"
-                        >
-                          <Eye size={11} /> View
-                        </button>
-                      ) : null}
+                      <button
+                        onClick={() => setModal({ member })}
+                        className={cn(
+                          "flex items-center gap-1.5 h-7 px-3 text-[11px] font-semibold rounded-sm transition-colors ml-auto",
+                          member.checkin_submitted
+                            ? "border border-border text-text-secondary hover:text-text-primary hover:bg-primary-50"
+                            : "bg-primary-600 hover:bg-primary-700 text-white"
+                        )}
+                      >
+                        <Edit2 size={11} /> {member.checkin_submitted ? "Edit Check-In" : "Write Check-In"}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -154,20 +142,12 @@ export default function CheckinPage() {
 
       {/* Modal */}
       {modal && (
-        modal.mode === "write" ? (
-          <WriteCheckinModal
-            member={modal.member}
-            userRole={user?.role ?? "manager"}
-            onClose={() => setModal(null)}
-            onSaved={handleSaved}
-          />
-        ) : (
-          <ViewCheckinModal
-            member={modal.member}
-            userRole={user?.role ?? "manager"}
-            onClose={() => setModal(null)}
-          />
-        )
+        <WriteCheckinModal
+          member={modal.member}
+          userRole={user?.role ?? "manager"}
+          onClose={() => setModal(null)}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   );
@@ -196,10 +176,26 @@ function WriteCheckinModal({ member, userRole, onClose, onSaved }: {
   useEffect(() => {
     (async () => {
       setReflLoading(true);
-      const res = await fetch(`/api/weekly/reflection/for-manager?employee_id=${member.employee_id}&week=${week}`);
-      if (res.ok) {
-        const data = await res.json();
+      // Fetch reflection and existing checkin in parallel
+      const [reflRes, chkRes] = await Promise.all([
+        fetch(`/api/weekly/reflection/for-manager?employee_id=${member.employee_id}&week=${week}`),
+        fetch(`/api/weekly/checkin?employee_id=${member.employee_id}&week=${week}`),
+      ]);
+      if (reflRes.ok) {
+        const data = await reflRes.json();
         setReflection(data.reflection ?? null);
+      }
+      // Pre-fill form if checkin already exists
+      if (chkRes.ok) {
+        const data = await chkRes.json();
+        const chk: FullCheckin | null = data.checkin ?? null;
+        if (chk) {
+          setMainThingOnMind(chk.Main_Thing_On_Mind ?? "");
+          setCommittedTo(chk.Committed_To ?? "");
+          setDidWell(chk.Did_Well ?? "");
+          setImprove(chk.Improve ?? "");
+          setConcern(chk.Concern ?? "");
+        }
       }
       setReflLoading(false);
     })();
@@ -323,62 +319,6 @@ function WriteCheckinModal({ member, userRole, onClose, onSaved }: {
           </div>
         </form>
       </div>
-    </ModalWrapper>
-  );
-}
-
-// ─── View Check-In Modal ──────────────────────────────────────────────────────
-
-function ViewCheckinModal({ member, userRole, onClose }: {
-  member: TeamMemberStatus;
-  userRole: string;
-  onClose: () => void;
-}) {
-  const week = getWeekStart();
-  const [checkin, setCheckin] = useState<FullCheckin | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const res = await fetch(`/api/weekly/checkin?employee_id=${member.employee_id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCheckin(data.checkin ?? null);
-      }
-      setLoading(false);
-    })();
-  }, [member.employee_id]);
-
-  return (
-    <ModalWrapper title={`Check-In: ${member.name}`} onClose={onClose}>
-      {loading ? (
-        <div className="py-8 flex justify-center"><Spinner /></div>
-      ) : checkin ? (
-        <div className="space-y-3">
-          <ViewField label="Main thing on mind" value={checkin.Main_Thing_On_Mind} hidden={false} />
-          <ViewField label="Committed to doing" value={checkin.Committed_To} hidden={false} />
-          <ViewField label="What they did well" value={checkin.Did_Well} hidden={false} highlighted />
-          <ViewField label="One thing to improve" value={checkin.Improve} hidden={false} highlighted />
-          {(userRole === "hr" || userRole === "md") && checkin.Concern && (
-            <div className="rounded-sm border border-danger/20 bg-danger/5 p-3">
-              <p className="text-[11px] font-semibold text-danger uppercase tracking-wide mb-1">
-                Concern (HR/MD only)
-              </p>
-              <p className="text-sm text-text-primary whitespace-pre-wrap">{checkin.Concern}</p>
-            </div>
-          )}
-          <p className="text-[11px] text-text-secondary pt-1">
-            Submitted · {fmtDateTime(checkin.Submitted_At)}
-          </p>
-          <div className="flex justify-end pt-1">
-            <button onClick={onClose} className="h-8 px-4 text-xs font-semibold bg-primary-600 text-white rounded-sm hover:bg-primary-700">
-              Close
-            </button>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-text-secondary py-4">Check-in data not found.</p>
-      )}
     </ModalWrapper>
   );
 }

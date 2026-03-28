@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ClipboardList, Briefcase,
   Users, Shield, TrendingUp,
   ChevronLeft, Menu, LogOut, Star, ShieldAlert,
-  Clock, BarChart3,
+  Clock, BarChart3, BarChart2, Settings,
 } from "lucide-react";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
 import type { Role } from "@/lib/types";
@@ -31,11 +31,13 @@ const navSections: NavSection[] = [
     label: "My",
     roles: ["All"],
     items: [
+      { name: "Dashboard", href: "/overview", icon: BarChart2, roles: ["All"] },
       { name: "Quick Actions", href: "/dashboard", icon: LayoutDashboard, roles: ["All"] },
       { name: "My Reflection", href: "/weekly/reflection", icon: ClipboardList, roles: ["employee","manager","hr","md"] },
       { name: "My Review", href: "/monthly/self-score", icon: Star, roles: ["employee","manager","hr","md"] },
       { name: "My Tasks", href: "/assignments", icon: Briefcase, roles: ["employee"] },
       { name: "My Grievances", href: "/grievances", icon: ShieldAlert, roles: ["employee","manager","hr","md"] },
+      { name: "Settings", href: "/settings", icon: Settings, roles: ["All"] },
     ],
   },
   {
