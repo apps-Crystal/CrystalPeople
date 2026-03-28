@@ -46,7 +46,7 @@ const navSections: NavSection[] = [
     items: [
       { name: "Weekly Check-In", href: "/weekly/checkin", icon: Users, roles: ["manager","hr","md"] },
       { name: "Review My Team", href: "/monthly/score-team", icon: TrendingUp, roles: ["manager","hr","md"] },
-      { name: "Assigned Tasks", href: "/assignments", icon: Briefcase, roles: ["manager","hr","md"] },
+      { name: "Assign Tasks", href: "/assignments", icon: Briefcase, roles: ["manager","hr","md"] },
       { name: "Team Overview", href: "/team", icon: BarChart3, roles: ["manager","hr","md"], comingSoon: true },
     ],
   },
